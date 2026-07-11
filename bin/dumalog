@@ -275,6 +275,21 @@ def cmd_mine(_a):
         sys.exit("no Claude/Codex session dirs found")
 
 
+def branch_rule(cfg):
+    branch = cfg.get("branch", "main")
+    if branch in ("main", "default"):
+        return ("Commit the new post directly to the repository's default branch "
+                "(main) and push it. If the push fails, leave the commit in place "
+                "and report the error.")
+    if branch == "pr":
+        return ("Commit the post on a new branch `post/<slug>` — NEVER on the "
+                "default branch. Open a PR if `gh` is available; otherwise stop "
+                "after committing and say so.")
+    return (f"Commit the post on branch `{branch}` (create it from the default "
+            f"branch if it does not exist) and push it. NEVER commit to the "
+            f"default branch.")
+
+
 def search_context(topic):
     try:
         r = run(["mempalace", "search", topic], capture_output=True, text=True, timeout=120)
@@ -303,6 +318,7 @@ def cmd_write(a):
     style_text = (Path(style).read_text() if style and Path(style).exists()
                   else "(no generated guide — infer everything from the example post)")
     prompt = (template
+              .replace("{{BRANCH_RULE}}", branch_rule(cfg))
               .replace("{{STYLE_GUIDE}}", style_text)
               .replace("{{TOPIC}}", topic)
               .replace("{{POSTS_DIR}}", blog["posts_dir"])

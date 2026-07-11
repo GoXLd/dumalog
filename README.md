@@ -72,9 +72,17 @@ dumalog write "how I sped up my API 35x by killing an N+1"
 
 Either way dumalog searches your mined chat history for relevant context,
 combines it with the writing guide ([prompts/write-post.md](prompts/write-post.md))
-and your example post, and runs the agent inside the blog repo. The agent
-commits the draft on a `post/<slug>` branch and opens a PR — **it never
-pushes to main**; you review and merge.
+and your example post, and runs the agent inside the blog repo. By default
+the agent **commits the post directly to `main` and pushes** — on GitHub
+Pages that means immediate publication.
+
+Want a review step or a staging branch instead? Set the `branch` option:
+
+```bash
+dumalog set branch pr      # post/<slug> branch + pull request, you merge
+dumalog set branch drafts  # commit to a fixed branch named "drafts"
+dumalog set branch main    # back to the default: straight to main
+```
 
 Keep the palace fresh — mining is incremental (already-filed sessions are
 skipped), so run it nightly. On macOS:
@@ -110,8 +118,9 @@ cp -r examples/hermes-skill/dumalog ~/.hermes/skills/software-development/
 ## Safety model
 
 - memPalace stores everything **locally** (embedded ChromaDB).
-- The writing guide forbids the agent to invent numbers, leak secrets,
-  or push to the default branch. A human merges every post.
+- The writing guide forbids the agent to invent numbers or leak secrets.
+- By default posts go straight to `main` (instant publish on GitHub Pages);
+  set `dumalog set branch pr` if you want a human-reviewed PR flow instead.
 
 ## License
 

@@ -18,10 +18,7 @@ Today's date: {{TODAY}}
 3. **Anonymize.** No tokens, API keys, IPs, internal domains, database
    names, or real customer identifiers. Projects may be described by type
    ("my Express backend", "my React dashboard").
-4. **Do not push to the default branch.** Create a branch
-   `post/<slug>`, commit the post there. If you have `gh` and permission,
-   open a PR; otherwise stop after committing and say so. Alternatively
-   set `published: false` in front matter for an early draft.
+4. **Branch policy:** {{BRANCH_RULE}}
 5. Do not modify existing posts or any other file outside the new post
    (and its image folder, if any).
 
@@ -108,4 +105,4 @@ imagination but git history outranks chat recollections.
 - [ ] Every number traceable to the context or a repo you inspected
 - [ ] The honest part exists (incident / limitation / what failed)
 - [ ] No secrets, IPs, internal domains
-- [ ] Committed on branch `post/<slug>`, PR opened if possible — never on main
+- [ ] Committed and pushed exactly as the branch policy above dictates

@@ -34,8 +34,15 @@ sessions into memPalace) into a publish-ready Jekyll blog post.
    outrank chat recollections. **Never invent a number.**
 4. Write ONE post in `<posts_dir>/<YYYY-MM-DD>-<slug>.md` following the
    writing guide.
-5. Commit on branch `post/<slug>`. Open a PR if `gh` is available.
-   **Never push to the default branch. Never edit existing posts.**
+5. Commit and push according to the `branch` setting in
+   `~/.dumalog/config.json`:
+   - absent or `"main"` (default) → commit directly to the default branch
+     (main) and push;
+   - `"pr"` → commit on a new branch `post/<slug>`, never on main, open a
+     PR if `gh` is available;
+   - any other value → commit to that branch (create from main if needed),
+     never to main.
+   **Never edit existing posts.**
 
 ## Safety
 
