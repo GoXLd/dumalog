@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Nightly incremental mine of Claude/Codex sessions into memPalace.
+     Install:
+       cp examples/com.dumalog.mine.plist ~/Library/LaunchAgents/
+       launchctl load -w ~/Library/LaunchAgents/com.dumalog.mine.plist
+     Log: ~/.dumalog/mine.log -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.dumalog.mine</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>-lc</string>
+        <string>~/.local/bin/dumalog mine >> ~/.dumalog/mine.log 2>&amp;1</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>5</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+</dict>
+</plist>

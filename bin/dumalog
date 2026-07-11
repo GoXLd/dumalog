@@ -5,14 +5,16 @@ Copyright (C) 2026 Alexandre Vandemoortèle (GoXLd).
 SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
 Dual-licensed: AGPL-3.0 for open use, commercial license available (see README).
 """
-import argparse, json, os, shutil, subprocess, sys, urllib.request
+import argparse, json, os, re, shutil, subprocess, sys, time, urllib.request
 from datetime import date
 from pathlib import Path
 
 HOME = Path(os.environ.get("DUMALOG_HOME", Path.home() / ".dumalog"))
 CONFIG = HOME / "config.json"
+TOPICS = HOME / "topics.json"
 APP_DIR = Path(__file__).resolve().parent.parent
 SESSION_DIRS = [Path.home() / ".claude/projects", Path.home() / ".codex/sessions"]
+DEFAULT_WINDOW_HOURS = 24
 
 
 def load_cfg():
@@ -29,6 +31,17 @@ def run(cmd, **kw):
     return subprocess.run(cmd, **kw)
 
 
+def pick_agent():
+    return os.environ.get("DUMALOG_AGENT") or (
+        "hermes" if shutil.which("hermes") else "codex" if shutil.which("codex") else None)
+
+
+def agent_cmd(agent, prompt, autonomous):
+    if agent == "hermes":
+        return ["hermes", "--oneshot", prompt] + (["--yolo"] if autonomous else [])
+    return ["codex", "exec"] + (["--full-auto"] if autonomous else []) + [prompt]
+
+
 def read_example(spec, blog_path):
     """spec: URL, absolute/relative path, or None (newest post in posts dir)."""
     if spec and spec.startswith(("http://", "https://")):
@@ -41,6 +54,103 @@ def read_example(spec, blog_path):
         return p.read_text()
     return None
 
+
+# --- topic suggestion ------------------------------------------------------
+
+def _user_text(obj):
+    """Extract a user message from one Claude Code or Codex session line."""
+    if obj.get("type") == "user":  # Claude Code
+        content = obj.get("message", {}).get("content")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            return "\n".join(c.get("text", "") for c in content
+                             if isinstance(c, dict) and c.get("type") == "text")
+    payload = obj.get("payload")   # Codex rollout
+    if isinstance(payload, dict) and payload.get("type") == "user_message":
+        return payload.get("message")
+    return None
+
+
+def recent_activity(hours, per_file=4000, total_cap=24000):
+    cutoff = time.time() - hours * 3600
+    chunks, total = [], 0
+    for base in SESSION_DIRS:
+        if not base.is_dir():
+            continue
+        files = [f for f in base.rglob("*.jsonl") if f.stat().st_mtime >= cutoff]
+        for f in sorted(files, key=lambda p: p.stat().st_mtime, reverse=True):
+            texts, size = [], 0
+            try:
+                for line in f.open(errors="replace"):
+                    try:
+                        t = _user_text(json.loads(line))
+                    except (json.JSONDecodeError, AttributeError):
+                        continue
+                    t = (t or "").strip()
+                    if not t or t.startswith(("<", "Caveat:")):
+                        continue  # skip injected reminders / tool wrappers
+                    texts.append(t[:500])
+                    size += min(len(t), 500)
+                    if size > per_file:
+                        break
+            except OSError:
+                continue
+            if texts:
+                chunks.append(f"### session: {f.parent.name}/{f.name}\n" + "\n".join(texts))
+                total += size
+            if total > total_cap:
+                return "\n\n".join(chunks)
+    return "\n\n".join(chunks)
+
+
+def covered_topics(blog):
+    """Existing post titles + topics already written via dumalog."""
+    out = []
+    posts = Path(blog["path"]) / blog["posts_dir"]
+    for p in sorted(posts.glob("*.md")):
+        m = re.search(r"^title:\s*(.+)$", p.read_text(errors="replace"), re.M)
+        out.append(m.group(1).strip() if m else p.stem)
+    if TOPICS.exists():
+        out += [t["topic"] for t in json.loads(TOPICS.read_text())]
+    return out
+
+
+def record_topic(topic):
+    hist = json.loads(TOPICS.read_text()) if TOPICS.exists() else []
+    hist.append({"topic": topic, "date": date.today().isoformat()})
+    TOPICS.write_text(json.dumps(hist, ensure_ascii=False, indent=2))
+
+
+def suggest_topic(blog, hours, agent):
+    activity = recent_activity(hours)
+    if not activity:
+        sys.exit(f"no coding-agent activity found in the last {hours}h "
+                 f"(try --window <hours> or 'dumalog set window_hours <N>')")
+    template = (APP_DIR / "prompts" / "suggest-topics.md").read_text()
+    prompt = (template
+              .replace("{{WINDOW_HOURS}}", str(hours))
+              .replace("{{EXCLUDE}}", "\n".join(f"- {t}" for t in covered_topics(blog)) or "(none)")
+              .replace("{{ACTIVITY}}", activity))
+    print(f"[dumalog] analyzing last {hours}h of activity via {agent}...", file=sys.stderr)
+    r = run(agent_cmd(agent, prompt, autonomous=False),
+            capture_output=True, text=True, timeout=600)
+    found = re.findall(r"^\s*(\d)[.)]\s+(.{10,300})$", r.stdout, re.M)
+    topics = list(dict.fromkeys(t.strip() for _, t in found))
+    if not topics:
+        sys.exit(f"could not parse topics from agent output:\n{r.stdout[-2000:]}")
+    print(f"\nТемы для поста (окно: {hours}ч):")
+    for i, t in enumerate(topics, 1):
+        print(f"  {i}. {t}")
+    choice = input("\nНомер темы (0 — выход, или впиши свою тему): ").strip()
+    if choice == "0" or not choice:
+        sys.exit(0)
+    if choice.isdigit() and 1 <= int(choice) <= len(topics):
+        return topics[int(choice) - 1]
+    return choice  # free-form topic typed by the user
+
+
+# --- commands ---------------------------------------------------------------
 
 def cmd_add_blog(a):
     cfg = load_cfg()
@@ -101,26 +211,34 @@ def cmd_write(a):
         sys.exit("no blog configured — run: dumalog add-blog <repo>")
     blog = cfg["blogs"][name]
     blog_path = Path(blog["path"])
+    agent = pick_agent()
+    if not agent:
+        sys.exit("no agent found: install hermes or codex, or set DUMALOG_AGENT")
+
+    topic = a.topic or suggest_topic(
+        blog, a.window or cfg.get("window_hours", DEFAULT_WINDOW_HOURS), agent)
 
     template = (APP_DIR / "prompts" / "write-post.md").read_text()
     example = read_example(blog.get("example"), blog_path) or "(no example post available)"
     prompt = (template
-              .replace("{{TOPIC}}", a.topic)
+              .replace("{{TOPIC}}", topic)
               .replace("{{POSTS_DIR}}", blog["posts_dir"])
               .replace("{{TODAY}}", date.today().isoformat())
-              .replace("{{CONTEXT}}", search_context(a.topic))
+              .replace("{{CONTEXT}}", search_context(topic))
               .replace("{{EXAMPLE_POST}}", example))
 
-    agent = os.environ.get("DUMALOG_AGENT") or (
-        "hermes" if shutil.which("hermes") else "codex" if shutil.which("codex") else None)
-    if agent == "hermes":
-        cmd = ["hermes", "--oneshot", prompt, "--yolo"]
-    elif agent == "codex":
-        cmd = ["codex", "exec", "--full-auto", prompt]
-    else:
-        sys.exit("no agent found: install hermes or codex, or set DUMALOG_AGENT")
-    print(f"[dumalog] writing '{a.topic}' in {blog_path} via {agent}", file=sys.stderr)
-    sys.exit(run(cmd, cwd=blog_path).returncode)
+    print(f"[dumalog] writing '{topic}' in {blog_path} via {agent}", file=sys.stderr)
+    rc = run(agent_cmd(agent, prompt, autonomous=True), cwd=blog_path).returncode
+    if rc == 0:
+        record_topic(topic)
+    sys.exit(rc)
+
+
+def cmd_set(a):
+    cfg = load_cfg()
+    cfg[a.key] = int(a.value) if a.value.isdigit() else a.value
+    save_cfg(cfg)
+    print(f"[dumalog] {a.key} = {cfg[a.key]}")
 
 
 def cmd_status(_a):
@@ -129,6 +247,7 @@ def cmd_status(_a):
         print(f"{tool:10} {'ok' if shutil.which(tool) else 'MISSING'}")
     for d in SESSION_DIRS:
         print(f"{d}: {'found' if d.is_dir() else 'absent'}")
+    print(f"window_hours: {cfg.get('window_hours', DEFAULT_WINDOW_HOURS)}")
     print(json.dumps(cfg, indent=2))
 
 
@@ -142,10 +261,18 @@ def main():
     ab.add_argument("--example", help="URL or path of a reference post (default: newest in posts dir)")
     ab.set_defaults(fn=cmd_add_blog)
 
-    w = sub.add_parser("write", help="write a post about a topic")
-    w.add_argument("topic")
+    w = sub.add_parser("write", help="write a post (no topic = suggest topics from recent activity)")
+    w.add_argument("topic", nargs="?", help="post topic; omit to get suggestions")
     w.add_argument("--blog", help="blog name (default: first registered)")
+    w.add_argument("--window", type=int,
+                   help=f"activity window in hours for suggestions "
+                        f"(default: window_hours setting or {DEFAULT_WINDOW_HOURS})")
     w.set_defaults(fn=cmd_write)
+
+    st = sub.add_parser("set", help="set a config value, e.g.: dumalog set window_hours 48")
+    st.add_argument("key")
+    st.add_argument("value")
+    st.set_defaults(fn=cmd_set)
 
     sub.add_parser("mine", help="(re)ingest Claude/Codex sessions into memPalace").set_defaults(fn=cmd_mine)
     sub.add_parser("status", help="show tools and config").set_defaults(fn=cmd_status)

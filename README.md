@@ -41,25 +41,54 @@ dumalog add-blog git@github.com:you/you.github.io.git \
 Without `--example` the newest post in `--posts-dir` is used as the style
 reference. Local paths work too: `dumalog add-blog ~/Git/my-blog`.
 
-Write a post:
+Write a post — with no arguments, dumalog analyzes your recent coding-agent
+activity and suggests topics to pick from:
+
+```bash
+dumalog write
+# Темы для поста (окно: 24ч):
+#   1. Safe VACUUM FULL in production: picking a quiet window...
+#   2. ...
+# Номер темы (0 — выход, или впиши свою тему):
+```
+
+Suggestions exclude what you already wrote about (existing post titles +
+dumalog's own history in `~/.dumalog/topics.json`), so no repeats. The
+activity window defaults to 24 hours; change it per run with
+`dumalog write --window 72` or permanently with `dumalog set window_hours 72`.
+
+Or skip the menu and name the topic yourself:
 
 ```bash
 dumalog write "how I sped up my API 35x by killing an N+1"
 ```
 
-This searches your mined chat history for relevant context, combines it
-with the writing guide ([prompts/write-post.md](prompts/write-post.md)) and
-your example post, and runs the agent inside the blog repo. The agent
+Either way dumalog searches your mined chat history for relevant context,
+combines it with the writing guide ([prompts/write-post.md](prompts/write-post.md))
+and your example post, and runs the agent inside the blog repo. The agent
 commits the draft on a `post/<slug>` branch and opens a PR — **it never
 pushes to main**; you review and merge.
 
-Keep the palace fresh (e.g. nightly via cron/launchd):
+Keep the palace fresh — mining is incremental (already-filed sessions are
+skipped), so run it nightly. On macOS:
 
 ```bash
-dumalog mine
+cp examples/com.dumalog.mine.plist ~/Library/LaunchAgents/
+launchctl load -w ~/Library/LaunchAgents/com.dumalog.mine.plist
 ```
 
+On Linux, a cron line does the same: `0 5 * * * ~/.local/bin/dumalog mine`.
+Manual refresh anytime: `dumalog mine`.
+
 Other commands: `dumalog status`.
+
+Using [hermes-agent](https://github.com/NousResearch/hermes-agent)'s desktop
+app or chat instead of the CLI? Install the bundled skill so Hermes can write
+posts natively (it reads the same config and writing guide):
+
+```bash
+cp -r examples/hermes-skill/dumalog ~/.hermes/skills/software-development/
+```
 
 ## Configuration
 
