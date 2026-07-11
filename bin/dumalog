@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""dumalog — turn your dev-chat history into blog posts. Stdlib only.
+
+Copyright (C) 2026 Alexandre Vandemoortèle (GoXLd).
+SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
+Dual-licensed: AGPL-3.0 for open use, commercial license available (see README).
+"""
+import argparse, json, os, shutil, subprocess, sys, urllib.request
+from datetime import date
+from pathlib import Path
+
+HOME = Path(os.environ.get("DUMALOG_HOME", Path.home() / ".dumalog"))
+CONFIG = HOME / "config.json"
+APP_DIR = Path(__file__).resolve().parent.parent
+SESSION_DIRS = [Path.home() / ".claude/projects", Path.home() / ".codex/sessions"]
+
+
+def load_cfg():
+    return json.loads(CONFIG.read_text()) if CONFIG.exists() else {"blogs": {}}
+
+
+def save_cfg(cfg):
+    HOME.mkdir(parents=True, exist_ok=True)
+    CONFIG.write_text(json.dumps(cfg, indent=2))
+
+
+def run(cmd, **kw):
+    print(f"[dumalog] $ {' '.join(map(str, cmd))}", file=sys.stderr)
+    return subprocess.run(cmd, **kw)
+
+
+def read_example(spec, blog_path):
+    """spec: URL, absolute/relative path, or None (newest post in posts dir)."""
+    if spec and spec.startswith(("http://", "https://")):
+        with urllib.request.urlopen(spec, timeout=30) as r:
+            return r.read().decode("utf-8", "replace")
+    if spec:
+        p = Path(spec)
+        if not p.is_absolute():
+            p = blog_path / spec
+        return p.read_text()
+    return None
+
+
+def cmd_add_blog(a):
+    cfg = load_cfg()
+    src = a.repo
+    if src.startswith(("http://", "https://", "git@")):
+        name = src.rstrip("/").split("/")[-1].removesuffix(".git")
+        path = HOME / "blogs" / name
+        if not path.exists():
+            run(["git", "clone", src, str(path)], check=True)
+    else:
+        path = Path(src).expanduser().resolve()
+        name = path.name
+        if not path.is_dir():
+            sys.exit(f"not a directory: {path}")
+
+    posts_dir = a.posts_dir
+    if not (path / posts_dir).is_dir():
+        sys.exit(f"posts dir '{posts_dir}' not found in {path} (use --posts-dir)")
+
+    example = a.example
+    if not example:  # default: newest post in the posts dir
+        posts = sorted((path / posts_dir).glob("*.md"))
+        if posts:
+            example = str(posts[-1].relative_to(path))
+            print(f"[dumalog] using newest post as example: {example}", file=sys.stderr)
+        else:
+            print("[dumalog] WARNING: posts dir is empty and no --example given; "
+                  "the agent will improvise front matter", file=sys.stderr)
+
+    cfg["blogs"][name] = {"path": str(path), "posts_dir": posts_dir, "example": example}
+    cfg.setdefault("default_blog", name)
+    save_cfg(cfg)
+    print(f"[dumalog] blog '{name}' registered ({path}); default: {cfg['default_blog']}")
+
+
+def cmd_mine(_a):
+    ok = False
+    for d in SESSION_DIRS:
+        if d.is_dir() and any(d.iterdir()):
+            run(["mempalace", "mine", str(d), "--mode", "convos"])
+            ok = True
+    if not ok:
+        sys.exit("no Claude/Codex session dirs found")
+
+
+def search_context(topic):
+    try:
+        r = run(["mempalace", "search", topic], capture_output=True, text=True, timeout=120)
+        return r.stdout.strip() or "(no search results)"
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        return f"(mempalace unavailable: {e})"
+
+
+def cmd_write(a):
+    cfg = load_cfg()
+    name = a.blog or cfg.get("default_blog")
+    if not name or name not in cfg["blogs"]:
+        sys.exit("no blog configured — run: dumalog add-blog <repo>")
+    blog = cfg["blogs"][name]
+    blog_path = Path(blog["path"])
+
+    template = (APP_DIR / "prompts" / "write-post.md").read_text()
+    example = read_example(blog.get("example"), blog_path) or "(no example post available)"
+    prompt = (template
+              .replace("{{TOPIC}}", a.topic)
+              .replace("{{POSTS_DIR}}", blog["posts_dir"])
+              .replace("{{TODAY}}", date.today().isoformat())
+              .replace("{{CONTEXT}}", search_context(a.topic))
+              .replace("{{EXAMPLE_POST}}", example))
+
+    agent = os.environ.get("DUMALOG_AGENT") or (
+        "hermes" if shutil.which("hermes") else "codex" if shutil.which("codex") else None)
+    if agent == "hermes":
+        cmd = ["hermes", "--oneshot", prompt, "--yolo"]
+    elif agent == "codex":
+        cmd = ["codex", "exec", "--full-auto", prompt]
+    else:
+        sys.exit("no agent found: install hermes or codex, or set DUMALOG_AGENT")
+    print(f"[dumalog] writing '{a.topic}' in {blog_path} via {agent}", file=sys.stderr)
+    sys.exit(run(cmd, cwd=blog_path).returncode)
+
+
+def cmd_status(_a):
+    cfg = load_cfg()
+    for tool in ("mempalace", "hermes", "codex"):
+        print(f"{tool:10} {'ok' if shutil.which(tool) else 'MISSING'}")
+    for d in SESSION_DIRS:
+        print(f"{d}: {'found' if d.is_dir() else 'absent'}")
+    print(json.dumps(cfg, indent=2))
+
+
+def main():
+    p = argparse.ArgumentParser(prog="dumalog", description=__doc__)
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    ab = sub.add_parser("add-blog", help="register a Jekyll blog (git URL or local path)")
+    ab.add_argument("repo")
+    ab.add_argument("--posts-dir", default="_posts")
+    ab.add_argument("--example", help="URL or path of a reference post (default: newest in posts dir)")
+    ab.set_defaults(fn=cmd_add_blog)
+
+    w = sub.add_parser("write", help="write a post about a topic")
+    w.add_argument("topic")
+    w.add_argument("--blog", help="blog name (default: first registered)")
+    w.set_defaults(fn=cmd_write)
+
+    sub.add_parser("mine", help="(re)ingest Claude/Codex sessions into memPalace").set_defaults(fn=cmd_mine)
+    sub.add_parser("status", help="show tools and config").set_defaults(fn=cmd_status)
+
+    a = p.parse_args()
+    a.fn(a)
+
+
+if __name__ == "__main__":
+    main()
