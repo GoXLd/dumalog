@@ -150,6 +150,85 @@ def suggest_topic(blog, hours, agent):
     return choice  # free-form topic typed by the user
 
 
+# --- interactive setup -------------------------------------------------------
+
+def find_blogs():
+    """Jekyll repos on this machine: a _config.yml next to a _posts/ dir."""
+    roots = [Path.home() / d for d in
+             ("Git", "Projects", "projects", "code", "dev", "src", "Documents/GitHub")]
+    roots.append(Path.home())
+    found = {}
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for cfg in root.glob("*/_config.yml"):
+            d = cfg.parent
+            if (d / "_posts").is_dir() and HOME not in d.parents:
+                found[str(d)] = d
+    return list(found.values())
+
+
+def make_style_guide(name, posts, agent):
+    body = ""
+    for p in posts:
+        body += f"\n\n<!-- ===== {p.name} ===== -->\n" + p.read_text(errors="replace")[:8000]
+    prompt = (APP_DIR / "prompts" / "make-style-guide.md").read_text().replace("{{POSTS}}", body)
+    print(f"[dumalog] генерирую style-гайд из {len(posts)} постов via {agent}...", file=sys.stderr)
+    r = run(agent_cmd(agent, prompt, autonomous=False), capture_output=True, text=True, timeout=600)
+    text = r.stdout.strip()
+    if r.returncode != 0 or len(text) < 200:
+        print("[dumalog] WARNING: style-гайд не сгенерирован, посты-образцы будут "
+              "использоваться напрямую", file=sys.stderr)
+        return None
+    out = HOME / "styles" / f"{name}.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text)
+    return str(out)
+
+
+def cmd_setup(_a):
+    blogs = find_blogs()
+    if not blogs:
+        sys.exit("Jekyll-блоги не найдены (искал _config.yml + _posts/ в ~/Git, "
+                 "~/Projects и т.п.) — зарегистрируй вручную: dumalog add-blog <repo>")
+    print("\nНайдены Jekyll-блоги:")
+    for i, d in enumerate(blogs, 1):
+        n_posts = len(list((d / "_posts").glob("*.md")))
+        print(f"  {i}. {d}  ({n_posts} постов)")
+    choice = input("\nКакой блог анализировать? (номер, 0 — пропустить) [1]: ").strip() or "1"
+    if choice == "0":
+        sys.exit(0)
+    blog_dir = blogs[int(choice) - 1]
+
+    posts = sorted((blog_dir / "_posts").glob("*.md"), reverse=True)
+    print(f"\nПоследние посты в {blog_dir.name}:")
+    shown = posts[:15]
+    for i, p in enumerate(shown, 1):
+        print(f"  {i}. {p.name}")
+    sel = input("\nКакие посты взять образцами формата? (номера через запятую) "
+                "[Enter = 3 последних]: ").strip()
+    if sel:
+        chosen = [shown[int(s) - 1] for s in re.split(r"[,\s]+", sel) if s]
+    else:
+        chosen = shown[:3]
+
+    name = blog_dir.name
+    cfg = load_cfg()
+    entry = {"path": str(blog_dir), "posts_dir": "_posts",
+             "example": str(chosen[0].relative_to(blog_dir))}
+    agent = pick_agent()
+    if agent:
+        style = make_style_guide(name, chosen, agent)
+        if style:
+            entry["style"] = style
+    cfg["blogs"][name] = entry
+    cfg.setdefault("default_blog", name)
+    save_cfg(cfg)
+    print(f"\n[dumalog] блог '{name}' настроен"
+          + (f", style-гайд: {entry.get('style')}" if entry.get("style") else "")
+          + f"\n[dumalog] дальше: dumalog write")
+
+
 # --- commands ---------------------------------------------------------------
 
 def cmd_add_blog(a):
@@ -220,7 +299,11 @@ def cmd_write(a):
 
     template = (APP_DIR / "prompts" / "write-post.md").read_text()
     example = read_example(blog.get("example"), blog_path) or "(no example post available)"
+    style = blog.get("style")
+    style_text = (Path(style).read_text() if style and Path(style).exists()
+                  else "(no generated guide — infer everything from the example post)")
     prompt = (template
+              .replace("{{STYLE_GUIDE}}", style_text)
               .replace("{{TOPIC}}", topic)
               .replace("{{POSTS_DIR}}", blog["posts_dir"])
               .replace("{{TODAY}}", date.today().isoformat())
@@ -274,6 +357,8 @@ def main():
     st.add_argument("value")
     st.set_defaults(fn=cmd_set)
 
+    sub.add_parser("setup", help="find local Jekyll blogs, pick example posts, "
+                                 "generate a style guide").set_defaults(fn=cmd_setup)
     sub.add_parser("mine", help="(re)ingest Claude/Codex sessions into memPalace").set_defaults(fn=cmd_mine)
     sub.add_parser("status", help="show tools and config").set_defaults(fn=cmd_status)
 

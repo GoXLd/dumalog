@@ -70,7 +70,16 @@ for src in "${FOUND_SOURCES[@]}"; do
   mempalace mine "$src" --mode convos || log "WARNING: mining $src failed — retry with 'dumalog mine'"
 done
 
+# --- 7. interactive blog setup (skipped when no terminal available) -------
+if [ -e /dev/tty ] && [ -r /dev/tty ]; then
+  log "looking for local Jekyll blogs..."
+  "$BIN_DIR/dumalog" setup </dev/tty || log "setup skipped — run 'dumalog setup' anytime"
+else
+  log "no terminal available — run 'dumalog setup' to register your blog"
+fi
+
 log "done. Next steps:"
-log "  dumalog add-blog <git-url-or-path> [--posts-dir _posts] [--example <post-url-or-path>]"
-log "  dumalog write \"topic of the post\""
+log "  dumalog setup                # if you skipped it above"
+log "  dumalog write                # suggests topics from your recent activity"
+log "  dumalog write \"topic\"        # or name the topic yourself"
 case ":$PATH:" in *":$BIN_DIR:"*) ;; *) log "NOTE: add $BIN_DIR to your PATH";; esac

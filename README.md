@@ -29,8 +29,15 @@ The installer:
 
 ## Usage
 
-Register a blog — one command, give it the repo and (optionally) a link to
-a post whose style you want to match:
+At the end of the install, `dumalog setup` runs automatically: it finds
+local Jekyll blogs (`_config.yml` + `_posts/` under `~/Git`, `~/Projects`,
+etc.), asks which one to analyze, lets you pick the posts whose formatting
+you like, and generates a per-blog **style guide** from them
+(`~/.dumalog/styles/<blog>.md`) that every future post will follow.
+Re-run it anytime with `dumalog setup`.
+
+Prefer to register a blog manually? One command, give it the repo and
+(optionally) a link to a post whose style you want to match:
 
 ```bash
 dumalog add-blog git@github.com:you/you.github.io.git \

@@ -89,6 +89,12 @@ imagination but git history outranks chat recollections.
 {{CONTEXT}}
 </context>
 
+## Blog style guide (generated from this blog's own posts — follow it)
+
+<style-guide>
+{{STYLE_GUIDE}}
+</style-guide>
+
 ## Example post (the quality bar — mirror its front matter and formatting)
 
 <example>
