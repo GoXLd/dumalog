@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- Nightly incremental mine of Claude/Codex sessions into memPalace.
-     Install:
-       cp examples/com.dumalog.mine.plist ~/Library/LaunchAgents/
+<!-- dumalog — nightly incremental mine of Claude/Codex sessions into memPalace.
+     Runs the dumalog binary directly (no shell wrapper) so it shows up as
+     "dumalog" in System Settings > General > Login Items & Extensions.
+     launchd does not expand ~, so substitute $HOME on install:
+       sed "s|\$HOME|$HOME|g" examples/com.dumalog.mine.plist \
+         > ~/Library/LaunchAgents/com.dumalog.mine.plist
        launchctl load -w ~/Library/LaunchAgents/com.dumalog.mine.plist
      Log: ~/.dumalog/mine.log -->
 <plist version="1.0">
@@ -11,10 +14,18 @@
     <string>com.dumalog.mine</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/zsh</string>
-        <string>-lc</string>
-        <string>~/.local/bin/dumalog mine >> ~/.dumalog/mine.log 2>&amp;1</string>
+        <string>$HOME/.local/bin/dumalog</string>
+        <string>mine</string>
     </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>$HOME/.dumalog/mine.log</string>
+    <key>StandardErrorPath</key>
+    <string>$HOME/.dumalog/mine.log</string>
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>

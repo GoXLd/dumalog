@@ -1,6 +1,14 @@
-# dumalog
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo/dumalog-all-white.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/logo/dumalog-all-black.png">
+    <img alt="dumalog — a portrait of Alexandre Dumas" src="assets/logo/dumalog-all-black.png" width="240">
+  </picture>
+</p>
 
-From dev chats to blog posts — an AI writing agent inspired by Dumas.
+<h1 align="center">dumalog</h1>
+
+<p align="center"><em>From dev chats to blog posts — an AI writing agent inspired by Dumas.</em></p>
 
 **dumalog** analyzes your development conversations (Codex CLI, Claude Code),
 stores them verbatim in a local [memPalace](https://github.com/MemPalace/mempalace)
@@ -88,9 +96,15 @@ Keep the palace fresh — mining is incremental (already-filed sessions are
 skipped), so run it nightly. On macOS:
 
 ```bash
-cp examples/com.dumalog.mine.plist ~/Library/LaunchAgents/
+sed "s|\$HOME|$HOME|g" examples/com.dumalog.mine.plist \
+  > ~/Library/LaunchAgents/com.dumalog.mine.plist
 launchctl load -w ~/Library/LaunchAgents/com.dumalog.mine.plist
 ```
+
+(The `sed` is needed because launchd does not expand `~` or env vars in
+paths.) The agent appears as **dumalog** in *System Settings → General →
+Login Items & Extensions → Allow in the Background* — that's this nightly
+mine; leave it enabled.
 
 On Linux, a cron line does the same: `0 5 * * * ~/.local/bin/dumalog mine`.
 Manual refresh anytime: `dumalog mine`.
