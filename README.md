@@ -95,6 +95,14 @@ launchctl load -w ~/Library/LaunchAgents/com.dumalog.mine.plist
 On Linux, a cron line does the same: `0 5 * * * ~/.local/bin/dumalog mine`.
 Manual refresh anytime: `dumalog mine`.
 
+Chroma's FTS5 search index can desync after an interrupted write ("malformed
+inverted index" — mempalace then refuses to mine). `dumalog mine` self-heals
+this: it checks the palace DB before mining and rebuilds the index in place,
+leaving a `chroma.sqlite3.pre-heal-*` backup next to it. Anything worse than
+FTS5 desync makes it exit non-zero with recovery instructions — check
+`~/.dumalog/mine.log` if the nightly run's last exit code isn't 0
+(`launchctl print gui/$UID/com.dumalog.mine | grep "last exit"`).
+
 Other commands: `dumalog status`.
 
 Using [hermes-agent](https://github.com/NousResearch/hermes-agent)'s desktop

@@ -265,14 +265,62 @@ def cmd_add_blog(a):
     print(f"[dumalog] blog '{name}' registered ({path}); default: {cfg['default_blog']}")
 
 
+# ponytail: mempalace default palace hardcoded — dumalog never passes --palace
+PALACE_DB = Path.home() / ".mempalace/palace/chroma.sqlite3"
+
+# Chroma's FTS5 index desyncs after interrupted writes; mempalace then refuses
+# to mine ("malformed inverted index"). Must run under mempalace's own Python:
+# its SQLite (>=3.42) detects FTS5 damage that macOS system sqlite3 misses.
+HEAL_SCRIPT = """\
+import shutil, sqlite3, sys, time
+db_path = sys.argv[1]
+db = sqlite3.connect(db_path)
+errs = [r[0] for r in db.execute("PRAGMA quick_check")]
+if errs == ["ok"]:
+    sys.exit(0)
+if not all("malformed inverted index" in e and "embedding_fulltext_search" in e
+           for e in errs):
+    print("[dumalog] palace quick_check failed beyond FTS5 — manual recovery "
+          "needed (sqlite3 .recover, then mempalace repair):", file=sys.stderr)
+    for e in errs:
+        print("  " + e, file=sys.stderr)
+    sys.exit(2)
+db.close()
+bak = db_path + time.strftime(".pre-heal-%Y%m%d-%H%M%S")
+shutil.copy2(db_path, bak)
+db = sqlite3.connect(db_path)
+db.execute("INSERT INTO embedding_fulltext_search(embedding_fulltext_search)"
+           " VALUES('rebuild')")
+db.commit()
+ok = [r[0] for r in db.execute("PRAGMA quick_check")] == ["ok"]
+print(f"[dumalog] palace FTS5 index rebuilt: {'ok' if ok else 'STILL BROKEN'}"
+      f" (backup: {bak})", file=sys.stderr)
+sys.exit(0 if ok else 2)
+"""
+
+
+def heal_palace():
+    exe = shutil.which("mempalace")
+    if not exe or not PALACE_DB.exists():
+        return
+    py = Path(exe).resolve().parent / "python"
+    if not py.exists():
+        return
+    rc = subprocess.run([str(py), "-c", HEAL_SCRIPT, str(PALACE_DB)]).returncode
+    if rc:
+        sys.exit(rc)
+
+
 def cmd_mine(_a):
-    ok = False
+    heal_palace()
+    ok, rc = False, 0
     for d in SESSION_DIRS:
         if d.is_dir() and any(d.iterdir()):
-            run(["mempalace", "mine", str(d), "--mode", "convos"])
+            rc = max(rc, run(["mempalace", "mine", str(d), "--mode", "convos"]).returncode)
             ok = True
     if not ok:
         sys.exit("no Claude/Codex session dirs found")
+    sys.exit(rc)
 
 
 def branch_rule(cfg):
