@@ -134,6 +134,30 @@ posts natively (it reads the same config and writing guide):
 cp -r examples/hermes-skill/dumalog ~/.hermes/skills/software-development/
 ```
 
+## Updating
+
+The CLI and all prompts (the writing guide included) live in one clone at
+`~/.dumalog/app`. The `dumalog` command is a symlink into it and Hermes reads
+`prompts/write-post.md` live from it, so pulling refreshes everything at once —
+nothing to restart, no re-install:
+
+```bash
+git -C ~/.dumalog/app pull --ff-only     # or re-run the install.sh one-liner
+```
+
+The Hermes **skill** is the one exception: `SKILL.md` was *copied* into
+`~/.hermes/skills/`, so a pull does not touch it. Re-copy only when `SKILL.md`
+itself changes (rare — the writing rules it points to update via the pull
+above):
+
+```bash
+cp -r ~/.dumalog/app/examples/hermes-skill/dumalog ~/.hermes/skills/software-development/
+```
+
+(Installed from your own checkout instead of the curl one-liner? Then your
+checkout *is* the app dir — `git pull` there, and the two paths above become
+that checkout.)
+
 ## Configuration
 
 - Config lives in `~/.dumalog/config.json` (multiple blogs supported,
