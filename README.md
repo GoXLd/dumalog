@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/logo/dumalog-white.svg">
-    <source media="(prefers-color-scheme: light)" srcset="assets/logo/dumalog-black.svg">
-    <img alt="dumalog — a portrait of Alexandre Dumas" src="assets/logo/dumalog-black.svg" width="240">
+    <source media="(prefers-color-scheme: light)" srcset="assets/logo/dumalog-light.png">
+    <img alt="dumalog — a portrait of Alexandre Dumas" src="assets/logo/dumalog-light.png" width="240">
   </picture>
 </p>
 
