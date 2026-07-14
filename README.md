@@ -18,6 +18,13 @@ Jekyll blog posts — the format most GitHub Pages blogs run on.
 Everything runs locally. Your chat history never leaves the machine except
 as the anonymized context sent to the model you configured.
 
+> **Themes.** dumalog produces standard Jekyll posts, so any Chirpy-style blog
+> works out of the box — including the multilingual
+> [**NLO**](https://github.com/GoXLd/NLO) theme, which is **fully supported** as
+> a publishing target. NLO renders dumalog's front matter as-is (`title`,
+> `date`, `categories`, `tags`, `image`, and the `language` / `translation_key`
+> multilingual fields), so generated posts publish with no extra formatting.
+
 ## Install (macOS / Linux)
 
 ```bash
