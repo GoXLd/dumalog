@@ -53,19 +53,55 @@ For a small note ("one interesting trick") shrink to: hook → problem →
 solution with code → measurement → takeaway. Scale the structure, never
 the style rules.
 
-## Formatting (match the example post's idioms)
+## Formatting — use the full Chirpy/NLO toolbox (match the example's idioms)
 
-- Use the callout syntax the example post uses (e.g. Chirpy's
-  `{: .prompt-info }` / `.prompt-tip` / `.prompt-warning` /
-  `.prompt-danger` after a blockquote). 1–4 callouts per post, no more.
-- Tables for any comparison or "parameter → value" list.
-- Code blocks short (5–15 lines), only the interesting fragment, with an
-  inline comment explaining why it matters.
-- One mermaid `flowchart` at most, only if a process loops or branches
-  (and only if the blog's front matter supports `mermaid: true`).
+The blog renders with Chirpy-style typography (the NLO theme supports the
+full set). Reach past plain paragraphs — but only where it earns its place.
+Exact syntax reference:
+<https://github.com/cotes2020/jekyll-theme-chirpy/blob/master/_posts/2019-08-08-text-and-typography.md>
+and <https://github.com/cotes2020/jekyll-theme-chirpy/blob/master/_posts/2019-08-08-write-a-new-post.md>.
+
+- **Callouts** — blockquote followed by `{: .prompt-info }` / `.prompt-tip` /
+  `.prompt-warning` / `.prompt-danger`. 1–4 per post: info = one-line result
+  summary, tip = a lifehack, warning/danger = hard rules or footguns.
+- **Tables** for any comparison or "parameter → value" list; right-align
+  number columns with `|---:|`.
+- **Code blocks** short (5–15 lines), only the interesting fragment, with an
+  inline comment on why it matters. Name the source with `{: file="path" }`
+  under the fence when it helps; `{: .nolineno }` to drop line numbers.
+- **Filepaths** inline: `` `_config.yml`{: .filepath} ``.
+- **Footnotes** (`claim[^id]` + `[^id]: …` at the end) for asides and sources
+  that would break the sentence inline.
+- **Math** — only if the front matter has `math: true`: inline `$a \ne 0$`,
+  display `$$ … $$`.
 - **Bold** for key figures and main claims — 2–5 per section, no more.
-- If you reference images you cannot produce, insert a clearly marked
-  `<!-- TODO: screenshot of ... -->` placeholder instead of a fake path.
+
+## Images and diagrams — generate them, don't stub them
+
+Prefer real, self-made visuals over TODO placeholders. In order of preference:
+
+1. **Mermaid diagrams** (text, rendered by the theme) for any process that
+   loops, branches, or sequences — flowchart, sequence, gantt. At most one
+   per post, and only if the front matter has `mermaid: true`.
+2. **Hand-authored SVG** for architecture / before-after schematics. Write a
+   clean, labelled `.svg` into the post's image folder — a text model does
+   this well and it stays crisp, themeable, and diffable. This is the default
+   when "a diagram would help here".
+3. **A generated cover or illustration** — if you have an image-generation
+   tool available, produce a ~1200×630 cover (and any illustrative raster)
+   and save it to the image folder. With no such tool, make the cover an SVG
+   or omit `image:` — never point at a path that does not exist.
+
+Placement (Chirpy syntax): files go under the post's folder; set
+`media_subpath: /path/<slug>/` (or use full per-image paths), then
+`![meaningful alt](cover.png){: .shadow }` and, on the **next line**, an
+italic caption `*What the figure shows and why it matters.*`. Add `.light` /
+`.dark` variants, `{: width="…" height="…" }`, or `.w-75` where useful.
+
+Never fabricate a screenshot of something that didn't happen — a real
+terminal/UI capture you cannot produce stays a
+`<!-- TODO: screenshot of … -->` placeholder. Diagrams of your own design are
+not screenshots; generate those.
 
 ## Style
 
@@ -104,5 +140,6 @@ imagination but git history outranks chat recollections.
 - [ ] File named `{{TODAY}}-slug.md` in `{{POSTS_DIR}}`
 - [ ] Every number traceable to the context or a repo you inspected
 - [ ] The honest part exists (incident / limitation / what failed)
+- [ ] Diagrams/cover are generated (mermaid / SVG / image tool), not bare TODOs
 - [ ] No secrets, IPs, internal domains
 - [ ] Committed and pushed exactly as the branch policy above dictates

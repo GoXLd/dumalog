@@ -68,10 +68,10 @@ activity and suggests topics to pick from:
 
 ```bash
 dumalog write
-# Темы для поста (окно: 24ч):
+# Topics for a post (window: 24h):
 #   1. Safe VACUUM FULL in production: picking a quiet window...
 #   2. ...
-# Номер темы (0 — выход, или впиши свою тему):
+# Topic number (0 to exit, or type your own topic):
 ```
 
 Suggestions exclude what you already wrote about (existing post titles +
